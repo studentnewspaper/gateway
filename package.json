@@ -15,6 +15,7 @@
   },
   "scripts": {
     "start": "ts-node --transpile-only index.ts",
-    "gen:sql": "prisma format && prisma generate"
+    "gen:sql": "prisma format && prisma generate",
+    "build": "tsc"
   }
 }
