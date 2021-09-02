@@ -1,0 +1,59 @@
+# WP keys are the `term_taxonomy_id`s
+
+categories:
+  - id: fringe
+    name: Fringe 2021 Reviews
+    wp:
+      - 14248
+
+  - id: featured
+    name: Featured
+    isSection: false
+    wp:
+      - 12
+
+  - id: news
+    name: News
+    wp:
+      - 1
+
+  - id: opinion
+    name: Opinion
+    wp:
+      - 2
+      - 108
+
+  - id: features
+    name: Features
+    wp:
+      - 4
+
+  - id: review
+    name: Review
+    wp:
+      - 3
+      - 9
+      - 7
+      - 11
+      - 13306
+
+  - id: lifestyle
+    name: Lifestyle
+    wp:
+      - 5
+
+  - id: voices
+    name: Voices
+    wp:
+      - 8385
+      - 8559
+
+  - id: sport
+    name: Sport
+    wp:
+      - 10
+
+  - id: science
+    name: Science
+    wp:
+      - 6
