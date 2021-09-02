@@ -10,6 +10,8 @@ COPY . .
 ARG NODE_ENV=${NODE_ENV}
 ARG DATABASE_URL=${DATABASE_URL}
 
+RUN npm i -g npm
+RUN npm run gen:sql
 RUN npm run build
 
 EXPOSE 8076
