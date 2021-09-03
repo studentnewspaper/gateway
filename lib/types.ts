@@ -49,7 +49,7 @@ export class Category {
 export class ArticlesEdge {
   @Field()
   hasNextPage: boolean;
-  @Field()
+  @Field({ nullable: true })
   lastCursor: string;
 
   nodes: number[];
