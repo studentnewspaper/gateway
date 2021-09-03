@@ -9,6 +9,7 @@ COPY . .
 
 ARG NODE_ENV=${NODE_ENV}
 ARG DATABASE_URL=${DATABASE_URL}
+ARG PORT=${PORT}
 
 RUN npm i -g npm
 RUN npm run gen:sql

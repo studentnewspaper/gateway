@@ -1,6 +1,11 @@
 # WP keys are the `term_taxonomy_id`s
 
 categories:
+  - id: freshers
+    name: Freshers Pack
+    wp:
+      - 14382
+
   - id: fringe
     name: Fringe 2021 Reviews
     wp:
