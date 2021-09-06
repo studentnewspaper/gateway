@@ -8,10 +8,19 @@ import { CategoryResolver } from "./lib/category";
 import { ImageResolver } from "./lib/image";
 import { init as prismaInit } from "./lib/client";
 import { stitchSchemas } from "@graphql-tools/stitch";
-import { introspectSchema } from "@graphql-tools/wrap";
+import {
+  introspectSchema,
+  PruneSchema,
+  RenameInputObjectFields,
+  RenameInterfaceFields,
+  RenameObjectFields,
+  RenameRootFields,
+  RenameTypes,
+} from "@graphql-tools/wrap";
+import { ExecutionRequest } from "@graphql-tools/utils";
 import { fetch } from "cross-fetch";
 import { print } from "graphql";
-import { ExecutionRequest } from "@graphql-tools/utils";
+import camelcase from "camelcase";
 
 const requiredEnvs = ["ORION_URL", "ORION_TOKEN", "DATABASE_URL"];
 for (const env of requiredEnvs) {
@@ -52,6 +61,14 @@ async function main() {
       {
         schema: await introspectSchema(orionExecutor),
         executor: orionExecutor,
+        transforms: [
+          new RenameRootFields((op, name) => camelcase(name)),
+          new RenameObjectFields((op, name) => camelcase(name)),
+          new RenameInputObjectFields((op, name) => camelcase(name)),
+          new RenameInterfaceFields((op, name) => camelcase(name)),
+          new RenameTypes((name) => camelcase(name, { pascalCase: true })),
+          new PruneSchema(),
+        ],
       },
     ],
   });
