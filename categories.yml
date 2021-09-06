@@ -1,0 +1,70 @@
+# WP keys are the `term_taxonomy_id`s
+
+- slug: freshers-21
+  name: Freshers Pack
+  wp:
+    - 14382
+
+- slug: fringe-21
+  name: Fringe 2021
+  wp:
+    - 14248
+
+- slug: featured
+  name: Featured
+  wp:
+    - 12
+
+- slug: news
+  name: News
+  section: true
+  wp:
+    - 1
+
+- slug: opinion
+  name: Opinion
+  section: true
+  wp:
+    - 2
+    - 108
+
+- slug: features
+  name: Features
+  section: true
+  wp:
+    - 4
+
+- slug: review
+  name: Review
+  section: true
+  wp:
+    - 3
+    - 9
+    - 7
+    - 11
+    - 13306
+
+- slug: lifestyle
+  name: Lifestyle
+  section: true
+  wp:
+    - 5
+
+- slug: voices
+  name: Voices
+  section: true
+  wp:
+    - 8385
+    - 8559
+
+- slug: sport
+  name: Sport
+  section: true
+  wp:
+    - 10
+
+- slug: science
+  name: Science
+  section: true
+  wp:
+    - 6

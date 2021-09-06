@@ -36,6 +36,9 @@ export class Category {
   id: string;
 
   @Field()
+  slug: string;
+
+  @Field()
   name: string;
 
   @Field({
