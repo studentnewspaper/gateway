@@ -12,9 +12,7 @@ type CategoryConfig = {
   wp: number[];
 };
 
-type Config = {
-  categories: CategoryConfig[];
-};
+type Config = CategoryConfig[];
 
 const configFile = fs.readFileSync("categories.yml", "utf-8");
 const config: Config = yaml.parse(configFile);
@@ -36,7 +34,7 @@ export class CategoryResolver {
     include: string[] | null,
     @Arg("exclude", () => [String], { nullable: true }) exclude: string[] | null
   ): Category[] {
-    return config.categories.map(convertCategoryConfig).filter((category) => {
+    return config.map(convertCategoryConfig).filter((category) => {
       if (include != null && !include.includes(category.id)) return false;
       if (exclude != null && exclude.includes(category.id)) return false;
       return true;
@@ -45,9 +43,7 @@ export class CategoryResolver {
 
   @Query((returns) => Category, { nullable: true })
   category(@Arg("slug") slug: string): Category | null {
-    const categoryConfig = config.categories.find(
-      (category) => category.slug == slug
-    );
+    const categoryConfig = config.find((category) => category.slug == slug);
     if (categoryConfig == null) return null;
 
     // TODO: extract to function + merge with other resolver
@@ -155,7 +151,7 @@ export function fromArticleCursorString(str: string): ArticleCursor {
 }
 
 export function getCategoryBySlug(slug: string) {
-  const category = Object.values(config.categories).find((x) => x.slug == slug);
+  const category = Object.values(config).find((x) => x.slug == slug);
   if (category == null) throw new Error(`Category ${slug} not found`);
   return category;
 }
