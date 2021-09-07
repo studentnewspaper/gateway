@@ -18,11 +18,9 @@ import {
   RenameTypes,
 } from "@graphql-tools/wrap";
 import { ExecutionRequest } from "@graphql-tools/utils";
-import { stitchingDirectives } from "@graphql-tools/stitching-directives";
 import { fetch } from "cross-fetch";
-import { print, printSchema } from "graphql";
+import { print } from "graphql";
 import camelcase from "camelcase";
-import { ArticlesEdge, Category } from "./lib/types";
 
 const requiredEnvs = ["ORION_URL", "ORION_TOKEN", "DATABASE_URL"];
 for (const env of requiredEnvs) {
@@ -48,7 +46,6 @@ async function main() {
   await prismaInit();
 
   const localSchema = await buildSchema({
-    directives: [...stitchingDirectives().allStitchingDirectives],
     resolvers: [
       ArticleResolver,
       AuthorResolver,
