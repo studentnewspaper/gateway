@@ -4,7 +4,7 @@ import { ApolloServer } from "apollo-server";
 import { ApolloServerPluginInlineTrace } from "apollo-server-core";
 import { ArticleResolver, ArticlesEdgeResolver } from "./lib/article";
 import { AuthorResolver } from "./lib/author";
-import { CategoryResolver } from "./lib/category";
+import { CategoryQueryArgs, CategoryResolver } from "./lib/category";
 import { ImageResolver } from "./lib/image";
 import { init as prismaInit } from "./lib/client";
 import { stitchSchemas } from "@graphql-tools/stitch";
@@ -18,9 +18,11 @@ import {
   RenameTypes,
 } from "@graphql-tools/wrap";
 import { ExecutionRequest } from "@graphql-tools/utils";
+import { stitchingDirectives } from "@graphql-tools/stitching-directives";
 import { fetch } from "cross-fetch";
-import { print } from "graphql";
+import { print, printSchema } from "graphql";
 import camelcase from "camelcase";
+import { ArticlesEdge, Category } from "./lib/types";
 
 const requiredEnvs = ["ORION_URL", "ORION_TOKEN", "DATABASE_URL"];
 for (const env of requiredEnvs) {
@@ -46,6 +48,7 @@ async function main() {
   await prismaInit();
 
   const localSchema = await buildSchema({
+    directives: [...stitchingDirectives().allStitchingDirectives],
     resolvers: [
       ArticleResolver,
       AuthorResolver,
@@ -57,17 +60,36 @@ async function main() {
 
   const schema = stitchSchemas({
     subschemas: [
-      localSchema,
+      {
+        schema: localSchema,
+        transforms: [new PruneSchema()],
+        merge: {
+          Category: {
+            fieldName: "category",
+            selectionSet: "{ wordpressTags }",
+            args: ({ wordpressTags }): CategoryQueryArgs => ({ wordpressTags }),
+          },
+        },
+      },
       {
         schema: await introspectSchema(orionExecutor),
         executor: orionExecutor,
+        // merge: {
+        //   Category: {
+        //     selectionSet: "{ id }",
+        //     args: ({ id }) => ({ id }),
+        //   },
+        // },
         transforms: [
           new RenameRootFields((op, name) => camelcase(name)),
           new RenameObjectFields((op, name) => camelcase(name)),
           new RenameInputObjectFields((op, name) => camelcase(name)),
           new RenameInterfaceFields((op, name) => camelcase(name)),
-          new RenameTypes((name) => camelcase(name, { pascalCase: true })),
-          new PruneSchema(),
+          new RenameTypes((name) => {
+            name = camelcase(name, { pascalCase: true });
+            name = name.replaceAll("Categories", "Category");
+            return name;
+          }),
         ],
       },
     ],

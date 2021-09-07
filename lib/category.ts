@@ -1,64 +1,39 @@
 import { Prisma, wp_term_relationships } from "@prisma/client";
-import { Category, ArticlesEdge, Author } from "./types";
-import { Resolver, Query, Arg, FieldResolver, Root } from "type-graphql";
-import * as fs from "fs";
-import * as yaml from "yaml";
+import { Category, ArticlesEdge } from "./types";
+import {
+  Resolver,
+  Query,
+  Arg,
+  FieldResolver,
+  Root,
+  ArgsType,
+  Field,
+  Int,
+  Args,
+  ID,
+} from "type-graphql";
 import { client } from "./client";
-
-type CategoryConfig = {
-  slug: string;
-  name: string;
-  section?: boolean;
-  wp: number[];
-};
-
-type Config = CategoryConfig[];
-
-const configFile = fs.readFileSync("categories.yml", "utf-8");
-const config: Config = yaml.parse(configFile);
-
-function convertCategoryConfig(config: CategoryConfig): Category {
-  return {
-    id: config.slug,
-    slug: config.slug,
-    isSection: config.section ?? false,
-    name: config.name,
-  };
+@ArgsType()
+export class CategoryQueryArgs {
+  @Field((type) => [Number])
+  wordpressTags: number[];
 }
 
 @Resolver(Category)
 export class CategoryResolver {
-  @Query((returns) => [Category])
-  categories(
-    @Arg("include", () => [String], { nullable: true })
-    include: string[] | null,
-    @Arg("exclude", () => [String], { nullable: true }) exclude: string[] | null
-  ): Category[] {
-    return config.map(convertCategoryConfig).filter((category) => {
-      if (include != null && !include.includes(category.id)) return false;
-      if (exclude != null && exclude.includes(category.id)) return false;
-      return true;
-    });
-  }
-
-  @Query((returns) => Category, { nullable: true })
-  category(@Arg("slug") slug: string): Category | null {
-    const categoryConfig = config.find((category) => category.slug == slug);
-    if (categoryConfig == null) return null;
-
-    // TODO: extract to function + merge with other resolver
-    return convertCategoryConfig(categoryConfig);
+  @Query((returns) => Category)
+  category(@Args() args: CategoryQueryArgs): Category {
+    return { wordpressTags: args.wordpressTags };
   }
 
   @FieldResolver((returns) => ArticlesEdge)
   async articles(
     @Root() category: Category,
-    @Arg("take", { defaultValue: 20 }) batchSize: number,
+    @Arg("take", () => Int, { defaultValue: 20 }) batchSize: number,
     @Arg("cursor", () => String, { nullable: true }) cursor: string | null
   ): Promise<ArticlesEdge> {
-    const categoryConfig = getCategoryBySlug(category.id);
     const edge = await objectsInCategory(
-      categoryConfig,
+      category.wordpressTags!,
       batchSize,
       cursor
     ).next();
@@ -76,7 +51,7 @@ type CategoryResult = {
 };
 
 export async function* objectsInCategory(
-  category: CategoryConfig,
+  tags: number[],
   batchSize = 20,
   firstCursor?: string | null
 ): AsyncGenerator<CategoryResult> {
@@ -87,7 +62,7 @@ export async function* objectsInCategory(
     const results: wp_term_relationships[] =
       await client.wp_term_relationships.findMany({
         where: {
-          term_taxonomy_id: { in: category.wp },
+          term_taxonomy_id: { in: tags },
           object: {
             post_status: "publish",
             post_type: "post",
@@ -148,10 +123,4 @@ export function fromArticleCursorString(str: string): ArticleCursor {
     object_id,
     term_taxonomy_id,
   };
-}
-
-export function getCategoryBySlug(slug: string) {
-  const category = Object.values(config).find((x) => x.slug == slug);
-  if (category == null) throw new Error(`Category ${slug} not found`);
-  return category;
 }

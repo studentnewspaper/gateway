@@ -32,20 +32,7 @@ export class Author {
 
 @ObjectType()
 export class Category {
-  @Field((type) => ID)
-  id: string;
-
-  @Field()
-  slug: string;
-
-  @Field()
-  name: string;
-
-  @Field({
-    description:
-      "Non-section categories are meta-groupings of content. For instance, the featured category is not a section - it aggregates from other sections instead.",
-  })
-  isSection: boolean;
+  wordpressTags: number[];
 }
 
 @ObjectType()
