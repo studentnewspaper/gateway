@@ -20,7 +20,7 @@
     "yaml": "^1.10.2"
   },
   "scripts": {
-    "start": "ts-node --transpile-only index.ts",
+    "dev": "ts-node --transpile-only index.ts",
     "gen:sql": "prisma format && prisma generate",
     "build": "tsc"
   }
