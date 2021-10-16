@@ -1,6 +1,6 @@
 import "reflect-metadata";
 import { buildSchema } from "type-graphql";
-import { ApolloServer } from "apollo-server";
+import { ApolloServer, ApolloError } from "apollo-server";
 import { ApolloServerPluginInlineTrace } from "apollo-server-core";
 import { ArticleResolver, ArticlesEdgeResolver } from "./lib/article";
 import { AuthorResolver } from "./lib/author";
@@ -21,6 +21,8 @@ import { ExecutionRequest } from "@graphql-tools/utils";
 import { fetch } from "cross-fetch";
 import { print } from "graphql";
 import camelcase from "camelcase";
+import { ApolloServerPlugin } from "apollo-server-plugin-base";
+import * as Sentry from "@sentry/node";
 
 const requiredEnvs = ["ORION_URL", "ORION_TOKEN", "DATABASE_URL"];
 for (const env of requiredEnvs) {
@@ -28,6 +30,14 @@ for (const env of requiredEnvs) {
     throw new Error(`Required ${env} environment variable not found`);
   }
 }
+
+const dsn = process.env.SENTRY_DSN;
+const isProduction = process.env.NODE_ENV == "production";
+
+Sentry.init({
+  dsn,
+  enabled: isProduction && dsn != null,
+});
 
 async function orionExecutor({ document, variables }: ExecutionRequest) {
   const query = print(document);
@@ -41,6 +51,38 @@ async function orionExecutor({ document, variables }: ExecutionRequest) {
   });
   return fetchResult.json();
 }
+
+const ErrorPlugin: ApolloServerPlugin = {
+  requestDidStart: async (ctx) => {
+    return {
+      didEncounterErrors: async (ctx) => {
+        // Could not parse request, ignore
+        if (ctx.operation == null) return;
+
+        for (const err of ctx.errors) {
+          if (err instanceof ApolloError) {
+            continue;
+          }
+
+          Sentry.withScope((scope) => {
+            // Annotate whether failing operation was query/mutation/subscription
+            scope.setTag("kind", ctx.operation?.operation);
+            scope.setExtra("query", ctx.request.query);
+            scope.setExtra("variables", ctx.request.variables);
+            if (err.path) {
+              scope.addBreadcrumb({
+                category: "query-path",
+                message: err.path.join(" > "),
+                level: Sentry.Severity.Debug,
+              });
+            }
+            Sentry.captureException(err);
+          });
+        }
+      },
+    };
+  },
+};
 
 async function main() {
   await prismaInit();
@@ -94,7 +136,7 @@ async function main() {
 
   const server = new ApolloServer({
     schema,
-    plugins: [ApolloServerPluginInlineTrace()],
+    plugins: [ApolloServerPluginInlineTrace(), ErrorPlugin],
   });
 
   const port = process.env.PORT || 8076;
@@ -103,5 +145,6 @@ async function main() {
 }
 
 main().catch((err) => {
+  console.error(err);
   throw err;
 });
