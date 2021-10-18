@@ -1,28 +1,18 @@
 import "reflect-metadata";
-import { buildSchema } from "type-graphql";
 import { ApolloServer, ApolloError } from "apollo-server";
 import { ApolloServerPluginInlineTrace } from "apollo-server-core";
-import { ArticleResolver, ArticlesEdgeResolver } from "./lib/article";
-import { AuthorResolver } from "./lib/author";
-import { CategoryQueryArgs, CategoryResolver } from "./lib/category";
-import { ImageResolver } from "./lib/image";
 import { init as prismaInit } from "./lib/client";
 import { stitchSchemas } from "@graphql-tools/stitch";
-import {
-  introspectSchema,
-  PruneSchema,
-  RenameInputObjectFields,
-  RenameInterfaceFields,
-  RenameObjectFields,
-  RenameRootFields,
-  RenameTypes,
-} from "@graphql-tools/wrap";
-import { ExecutionRequest } from "@graphql-tools/utils";
-import { fetch } from "cross-fetch";
-import { print } from "graphql";
-import camelcase from "camelcase";
 import { ApolloServerPlugin } from "apollo-server-plugin-base";
 import * as Sentry from "@sentry/node";
+import {
+  FilterObjectFields,
+  PruneSchema,
+  wrapSchema,
+} from "@graphql-tools/wrap";
+import { getOrionSchema } from "./lib/schemas/orion";
+import { getLocalSchema } from "./lib/schemas/local";
+import { delegateToSchema } from "@graphql-tools/delegate";
 
 const requiredEnvs = ["ORION_URL", "ORION_TOKEN", "DATABASE_URL"];
 for (const env of requiredEnvs) {
@@ -38,19 +28,6 @@ Sentry.init({
   dsn,
   enabled: isProduction && dsn != null,
 });
-
-async function orionExecutor({ document, variables }: ExecutionRequest) {
-  const query = print(document);
-  const fetchResult = await fetch(process.env.ORION_URL!, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.ORION_TOKEN!}`,
-    },
-    body: JSON.stringify({ query, variables }),
-  });
-  return fetchResult.json();
-}
 
 const ErrorPlugin: ApolloServerPlugin = {
   requestDidStart: async (ctx) => {
@@ -87,55 +64,94 @@ const ErrorPlugin: ApolloServerPlugin = {
 async function main() {
   await prismaInit();
 
-  const localSchema = await buildSchema({
-    resolvers: [
-      ArticleResolver,
-      AuthorResolver,
-      CategoryResolver,
-      ArticlesEdgeResolver,
-      ImageResolver,
-    ],
-  });
+  const [localSchema, orionSchema] = await Promise.all([
+    getLocalSchema(),
+    getOrionSchema(),
+  ]);
 
   const schema = stitchSchemas({
-    subschemas: [
-      {
-        schema: localSchema,
-        transforms: [new PruneSchema()],
-        merge: {
-          Category: {
-            fieldName: "category",
-            selectionSet: "{ wordpressTags }",
-            args: ({ wordpressTags }): CategoryQueryArgs => ({ wordpressTags }),
+    subschemas: [localSchema, orionSchema],
+    typeDefs: `
+      extend type Query {
+        advert: Advert
+      }
+    `,
+    resolvers: {
+      Query: {
+        advert: {
+          resolve: async (_, __, context, info) => {
+            const adverts: any[] | null = await delegateToSchema({
+              schema: orionSchema,
+              context,
+              info,
+              operation: "query",
+              fieldName: "adverts",
+            });
+
+            if (adverts != null && adverts.length > 0) {
+              return adverts[0];
+            }
+
+            return null;
           },
         },
       },
-      {
-        schema: await introspectSchema(orionExecutor),
-        executor: orionExecutor,
-        // merge: {
-        //   Category: {
-        //     selectionSet: "{ id }",
-        //     args: ({ id }) => ({ id }),
-        //   },
-        // },
-        transforms: [
-          new RenameRootFields((op, name) => camelcase(name)),
-          new RenameObjectFields((op, name) => camelcase(name)),
-          new RenameInputObjectFields((op, name) => camelcase(name)),
-          new RenameInterfaceFields((op, name) => camelcase(name)),
-          new RenameTypes((name) => {
-            name = camelcase(name, { pascalCase: true });
-            name = name.replaceAll("Categories", "Category");
-            return name;
-          }),
-        ],
+      Advert: {
+        link: {
+          selectionSet: `{
+            link
+            trackingSource
+            trackingMedium
+            trackingCampaign
+            trackingCampaignId
+          }`,
+          resolve: (advert: {
+            link: string | null;
+            trackingSource: string | null;
+            trackingMedium: string | null;
+            trackingCampaign: string | null;
+            trackingCampaignId: string | null;
+          }) => {
+            if (advert.link == null) return null;
+            const url = new URL(advert.link);
+
+            const rawParams = {
+              utm_source: advert.trackingSource,
+              utm_medium: advert.trackingMedium,
+              utm_campaign: advert.trackingCampaign,
+              utm_id: advert.trackingCampaignId,
+            };
+
+            for (const [key, value] of Object.entries(rawParams)) {
+              if (value == null) continue;
+              if (url.searchParams.has(key)) continue;
+              url.searchParams.append(key, value);
+            }
+
+            return url.toString();
+          },
+        },
       },
+    },
+  });
+
+  const simplifiedSchema = wrapSchema({
+    schema,
+    transforms: [
+      new FilterObjectFields((type, field) => {
+        if (type == "Query") {
+          if (["adverts", "advertsById"].includes(field)) {
+            return false;
+          }
+        }
+        return true;
+      }),
+      new PruneSchema(),
     ],
   });
 
   const server = new ApolloServer({
-    schema,
+    schema: simplifiedSchema,
     plugins: [ApolloServerPluginInlineTrace(), ErrorPlugin],
   });
 
