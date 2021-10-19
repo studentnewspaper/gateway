@@ -97,6 +97,15 @@ async function main() {
         },
       },
       Advert: {
+        image: {
+          selectionSet: `{
+            image
+          }`,
+          resolve({ image }: { image: string | null }) {
+            if (image == null) return null;
+            return `https://orion.fabric.studentnewspaper.org/assets/${image}`;
+          },
+        },
         link: {
           selectionSet: `{
             link
